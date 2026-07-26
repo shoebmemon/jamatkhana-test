@@ -5,16 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
 <title>Stockline — Order Book</title>
 
+<!-- TEMPORARILY DISABLED while debugging the select-bar layout issue via
+     local file:// testing — manifest/icons/service-worker all throw CORS
+     and file-not-found errors under file://, which was drowning out the
+     actual bug in the console. Restore all three (manifest link, icon
+     links, and the service worker registration script near the bottom of
+     this file) once testing moves back to the real deployed URL.
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1B2430">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 
-<!-- iOS home-screen support (Safari ignores manifest.json for these) -->
+iOS home-screen support (Safari ignores manifest.json for these):
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Stockline">
 <link rel="apple-touch-icon" href="icon-192.png">
+-->
+
+<meta name="theme-color" content="#1B2430">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Stockline">
+
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -741,7 +754,6 @@
     align-items:center;
     justify-content:space-between;
     gap:10px;
-    margin:-18px -16px 14px -16px;
     padding:14px 16px;
     background:var(--paper);
     border-bottom:1px solid var(--line);
@@ -1042,16 +1054,16 @@
     }
     nav.bottom-tabs button .bn-badge{ position:static; margin-left:2px; }
 
-    /* Header, then the tab strip, then the install/update banner (if
-       showing), then the page content — the banner used to sit between
-       the header and the tabs; moved after the tabs via flex `order` so
-       nothing interrupts header -> tabs. */
+    /* Header, then the tab strip, then the install/update banner or the
+       select-bar (whichever is showing), then the page content — both the
+       banner and the select-bar used to sit between the header and the
+       tabs; moved after the tabs via flex `order` so nothing interrupts
+       header -> tabs. */
     .install-banner{ order:2; }
+    #selectBarWrap{ order:2; }
     main{ order:3; padding-bottom:24px; }
 
     .toast{ bottom:24px; }
-
-    .app.selecting .select-bar{ max-width:640px; } /* match .app's desktop width */
   }
 
   /* Selection mode (delete rows): take over the top app bar entirely
@@ -1067,13 +1079,26 @@
   .app.selecting #updateBanner{
     display:none;
   }
+  /* Desktop wants all three stacked instead of the header being replaced:
+     Stockline header, then the nav tabs, then the select-bar. Same
+     specificity as the hiding rule above, so this has to come after it in
+     the stylesheet to actually win at this width — see positionSelectBar()
+     for the matching top-offset change that stacks the bar below both. */
+  @media (min-width: 768px){
+    .app.selecting header.top{ display:flex; }
+  }
+  /* position:sticky, not fixed — a fixed element's `top` is a raw pixel
+     offset against the browser's own viewport, which on mobile Chrome
+     changes size when the address bar auto-hides during a scroll gesture,
+     making a fixed bar visibly drift/get covered mid-swipe. Sticky is
+     computed natively against the page's own scroll port, the same
+     mechanism nav.bottom-tabs already relies on without issue, so it stays
+     correctly placed through the exact scroll interaction that was
+     breaking this. It also just fills #selectBarWrap's full width now, so
+     the old max-width/margin:auto centering (and the cascade-order fight
+     that came with it) isn't needed at all. */
   .app.selecting .select-bar{
-    position:fixed;
-    top:0;
-    left:0;
-    right:0;
-    max-width:520px;
-    margin:0 auto;
+    position:sticky;
     z-index:30;
     background:var(--ink);
     border-bottom:none;
@@ -1143,6 +1168,15 @@
     <span class="ib-text">A new version of Stockline is ready</span>
     <button class="ib-install" onclick="applyAppUpdate()">Refresh</button>
   </div>
+
+  <!-- Deliberately NOT inside #main: main has `transform:translateZ(0)` for
+       animation performance, and any transform on an ancestor turns
+       position:fixed descendants into position:absolute-relative-to-that-
+       ancestor instead of truly viewport-fixed. Since main can grow to the
+       height of hundreds of items on desktop, a select-bar nested inside it
+       would scroll away with the list instead of staying put. Living here
+       as a sibling keeps it genuinely fixed regardless of list length. -->
+  <div id="selectBarWrap"></div>
 
   <main id="main"></main>
 
@@ -2919,6 +2953,11 @@ function findActiveOrderForStock(item){
 
 function render(){
   appEl.classList.toggle('selecting', isSelecting());
+  // Cleared here so screens that don't manage a select-bar (forms, order
+  // detail, the order picker) never show a stale one left over from
+  // whichever list screen was open before. The 4 list-render functions
+  // that do use it overwrite this synchronously later in the same call.
+  document.getElementById('selectBarWrap').innerHTML = '';
 
   const activeCount = orderHistory.filter(o=> o.status === 'active').length;
   const badge = document.getElementById('activeBadge');
@@ -3372,10 +3411,11 @@ function renderOrdersList(status){
   const inSelection = selectionMode && selectionTab === status;
 
   let html = '';
+  let selectBarHtml = '';
   if(inSelection){
     const visibleIds = getFilteredOrders(status).map(o=> o.id);
     const allSelected = visibleIds.length > 0 && visibleIds.every(id=> selectedOrderIds.has(id));
-    html += `
+    selectBarHtml = `
       <div class="select-bar">
         <div class="sb-left">
           <button class="sb-cancel" title="Cancel selection" onclick="cancelSelection()">✕</button>
@@ -3400,6 +3440,7 @@ function renderOrdersList(status){
 
   html += `<div id="ordersListWrap"></div>`;
 
+  document.getElementById('selectBarWrap').innerHTML = selectBarHtml;
   mainEl.innerHTML = html;
   renderOrdersListItems(status);
   positionSelectBar();
@@ -3460,35 +3501,39 @@ function renderOrdersListItems(status){
 // applies it as the nav's sticky `top`. On mobile the nav stays bottom-
 // fixed via normal flex layout and doesn't need this, so it's cleared.
 function positionNavBar(){
+  const header = document.querySelector('header.top');
   const nav = document.querySelector('nav.bottom-tabs');
-  if(!nav) return;
+  if(!header || !nav) return;
   const isDesktop = window.matchMedia('(min-width: 768px)').matches;
-  if(!isDesktop){ nav.style.top = ''; return; }
-  // On desktop, nav.bottom-tabs sits directly under whichever bar currently
-  // occupies the top of the page — normally header.top, but during
-  // multi-select the header is hidden and the fixed .select-bar takes its
-  // place instead. This used to always measure header.top, so its stale
-  // (often larger) height stuck around after selection mode hid the header,
-  // leaving the nav bar sticking too low and overlapping the select-bar.
-  const topBar = appEl.classList.contains('selecting')
-    ? document.querySelector('.select-bar')
-    : document.querySelector('header.top');
-  nav.style.top = topBar ? topBar.offsetHeight + 'px' : '0px';
+  // On desktop, nav.bottom-tabs sits directly under the header. While
+  // selecting, the header is hidden (offsetHeight naturally becomes 0),
+  // so the nav bar simply sticks to the very top of the page in that
+  // case — the select-bar now sits fixed *below* the nav bar instead of
+  // above it, so nav no longer needs to account for the select-bar here.
+  nav.style.top = isDesktop ? header.offsetHeight + 'px' : '';
 }
 
 function positionSelectBar(){
   const bar = document.querySelector('.select-bar');
-  if(bar) bar.style.top = '';
-  // The select-bar is position:fixed while selecting (on every screen
-  // size), taking itself out of normal flow — so `main`'s content would
-  // otherwise start out hidden underneath it. Pad main by the bar's real
-  // measured height (rather than a guessed constant) so content always
-  // starts right below it, however tall the bar actually renders (e.g.
-  // with the count text wrapping).
-  if(bar){
-    mainEl.style.paddingTop = (bar.offsetHeight + 18) + 'px';
+  // Reset any leftover padding from a previous version of this function —
+  // position:sticky reserves its own space in the document flow (unlike
+  // position:fixed, which doesn't), so main never needs artificial
+  // top-padding to avoid the bar covering its content.
+  mainEl.style.paddingTop = '';
+  if(!bar) return;
+  const isDesktop = window.matchMedia('(min-width: 768px)').matches;
+  // On mobile the select-bar still takes over the very top of the page
+  // (WhatsApp-style, replacing the header). On desktop the header stays
+  // visible during selection, so the stacking order is header, then nav,
+  // then the select-bar sticking right below both.
+  if(isDesktop){
+    const header = document.querySelector('header.top');
+    const nav = document.querySelector('nav.bottom-tabs');
+    const headerH = header ? header.offsetHeight : 0;
+    const navH = nav ? nav.offsetHeight : 0;
+    bar.style.top = (headerH + navH) + 'px';
   } else {
-    mainEl.style.paddingTop = '';
+    bar.style.top = '';
   }
 }
 
@@ -3579,7 +3624,7 @@ function sendToWhatsApp(orderId){
   const wasActive = o.status === 'active';
 
   const header = `Order\n\nTo ${o.supplierName},\n`;
-  const body = o.items.map((li, i)=> `${i + 1}. ${li.name} - ${li.qty} ${li.unit}`).join('\n\n');
+  const body = o.items.map((li, i)=> `${i + 1}. ${li.name} - ${li.qty} ${li.unit}`).join('\n');
   const message = `${header}\n${body}\n\nThank you!`;
 
   const phoneDigits = cleanPhone(o.supplierPhone);
@@ -3790,10 +3835,11 @@ function addItemToOrderDetail(stockId){
 
 function renderStocks(){
   let html = '';
+  let selectBarHtml = '';
   if(stockSelectionMode){
     const visibleIds = getFilteredSortedStocks().map(s=> s.id);
     const allSelected = visibleIds.length > 0 && visibleIds.every(id=> selectedStockIds.has(id));
-    html += `
+    selectBarHtml = `
       <div class="select-bar">
         <div class="sb-left">
           <button class="sb-cancel" title="Cancel selection" onclick="cancelStockSelection()">✕</button>
@@ -3826,6 +3872,7 @@ function renderStocks(){
 
   html += `<div id="stocksListWrap"></div>`;
 
+  document.getElementById('selectBarWrap').innerHTML = selectBarHtml;
   mainEl.innerHTML = html;
   renderStocksList();
   positionSelectBar();
@@ -3887,6 +3934,13 @@ function renderStocksList(){
           <div class="meta">${escapeHtml(s.supplierName)}</div>
         </div>
         <span class="unit-pill">${escapeHtml(s.unit)}</span>
+        ${inSelection ? `
+          <button class="icon-btn" title="Edit item"
+            ontouchstart="event.stopPropagation()"
+            ontouchend="event.stopPropagation()"
+            onmousedown="event.stopPropagation()"
+            onclick="event.stopPropagation(); startEditStock('${s.id}')">✎</button>
+        ` : ''}
       </div>
     `;
   });
@@ -3923,7 +3977,7 @@ function handleStockClick(id){
   if(stockSelectionMode){
     toggleStockSelection(id);
   } else {
-    startEditStock(id);
+    openAddModal(id);
   }
 }
 
@@ -4070,11 +4124,12 @@ function removeStock(id){
 function renderSuppliersDirectory(){
   const suppliers = getSuppliers();
   let html = '';
+  let selectBarHtml = '';
 
   if(supplierSelectionMode){
     const visibleKeys = getFilteredSuppliers().map(sup=> supplierKey(sup.name, sup.phone));
     const allSelected = visibleKeys.length > 0 && visibleKeys.every(k=> selectedSupplierKeys.has(k));
-    html += `
+    selectBarHtml = `
       <div class="select-bar">
         <div class="sb-left">
           <button class="sb-cancel" title="Cancel selection" onclick="cancelSupplierSelection()">✕</button>
@@ -4107,6 +4162,7 @@ function renderSuppliersDirectory(){
 
   html += `<div id="suppliersListWrap"></div>`;
 
+  document.getElementById('selectBarWrap').innerHTML = selectBarHtml;
   mainEl.innerHTML = html;
   renderSuppliersList();
   positionSelectBar();
@@ -4388,10 +4444,11 @@ function renderSupplierStockList(){
   const supplierItemIds = sup.items.map(item=> item.id);
 
   let html = '';
+  let selectBarHtml = '';
 
   if(stockSelectionMode){
     const allSelected = supplierItemIds.length > 0 && supplierItemIds.every(id=> selectedStockIds.has(id));
-    html += `
+    selectBarHtml = `
       <div class="select-bar">
         <div class="sb-left">
           <button class="sb-cancel" title="Cancel selection" onclick="cancelStockSelection()">✕</button>
@@ -4451,6 +4508,7 @@ function renderSupplierStockList(){
   });
 
   html += '</div>';
+  document.getElementById('selectBarWrap').innerHTML = selectBarHtml;
   mainEl.innerHTML = html;
   positionSelectBar();
   positionNavBar();
@@ -4717,7 +4775,11 @@ function applyAppUpdate(){
   else{ window.location.reload(); } // fallback: it may have already taken over on its own
 }
 
-if('serviceWorker' in navigator){
+// TEMPORARILY DISABLED (false &&) while debugging via local file:// testing —
+// registration always fails under file:// anyway and was adding noise to the
+// console. Restore by deleting "false && " below once testing is back on the
+// real deployed URL.
+if(false && 'serviceWorker' in navigator){
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', ()=>{
     if(refreshing) return;
