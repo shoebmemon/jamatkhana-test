@@ -746,10 +746,23 @@ iOS home-screen support (Safari ignores manifest.json for these):
     font-weight:700;
     line-height:1;
   }
-  .select-bar{
+  /* position:sticky lives on the WRAPPER, not on .select-bar itself.
+     A sticky element can only stick while scrolling through its own
+     containing block (normally its parent) — and #selectBarWrap's parent
+     is .app, which spans the whole scrollable page, giving it room to
+     stick. If sticky were applied to .select-bar directly, its
+     containing block would be #selectBarWrap, which is only ever as
+     tall as the bar itself, so there'd be zero room to stick and the
+     bar would just scroll away with the page (this was the actual
+     "select bar scrolls with the items" bug). Same mechanism
+     nav.bottom-tabs already relies on, since it's a direct, tall-parented
+     flex child rather than nested in a form-fitting wrapper. */
+  #selectBarWrap{
     position:sticky;
     top:0;
     z-index:15;
+  }
+  .select-bar{
     display:flex;
     align-items:center;
     justify-content:space-between;
@@ -1086,6 +1099,13 @@ iOS home-screen support (Safari ignores manifest.json for these):
      for the matching top-offset change that stacks the bar below both. */
   @media (min-width: 768px){
     .app.selecting header.top{ display:flex; }
+    /* v2: the nav tab strip (Order/Active/Completed/Items/Suppliers) is
+       hidden during selection instead of staying stacked above the select
+       bar — WhatsApp-style, the select bar takes over right under the
+       header. positionSelectBar() doesn't need a code change for this:
+       a hidden nav's offsetHeight naturally reads as 0, so the JS-computed
+       top offset collapses to just the header's height on its own. */
+    .app.selecting nav.bottom-tabs{ display:none; }
   }
   /* position:sticky, not fixed — a fixed element's `top` is a raw pixel
      offset against the browser's own viewport, which on mobile Chrome
@@ -1097,9 +1117,10 @@ iOS home-screen support (Safari ignores manifest.json for these):
      breaking this. It also just fills #selectBarWrap's full width now, so
      the old max-width/margin:auto centering (and the cascade-order fight
      that came with it) isn't needed at all. */
-  .app.selecting .select-bar{
-    position:sticky;
+  .app.selecting #selectBarWrap{
     z-index:30;
+  }
+  .app.selecting .select-bar{
     background:var(--ink);
     border-bottom:none;
     box-shadow:0 4px 10px rgba(27,36,48,.08);
@@ -3515,6 +3536,7 @@ function positionNavBar(){
 
 function positionSelectBar(){
   const bar = document.querySelector('.select-bar');
+  const wrap = document.getElementById('selectBarWrap');
   // Reset any leftover padding from a previous version of this function —
   // position:sticky reserves its own space in the document flow (unlike
   // position:fixed, which doesn't), so main never needs artificial
@@ -3526,14 +3548,17 @@ function positionSelectBar(){
   // (WhatsApp-style, replacing the header). On desktop the header stays
   // visible during selection, so the stacking order is header, then nav,
   // then the select-bar sticking right below both.
+  // The offset is set on #selectBarWrap, not .select-bar — #selectBarWrap
+  // is the element that's actually position:sticky (see its CSS rule for
+  // why), so it's the one that needs the pixel `top`.
   if(isDesktop){
     const header = document.querySelector('header.top');
     const nav = document.querySelector('nav.bottom-tabs');
     const headerH = header ? header.offsetHeight : 0;
     const navH = nav ? nav.offsetHeight : 0;
-    bar.style.top = (headerH + navH) + 'px';
+    wrap.style.top = (headerH + navH) + 'px';
   } else {
-    bar.style.top = '';
+    wrap.style.top = '';
   }
 }
 
@@ -3977,7 +4002,7 @@ function handleStockClick(id){
   if(stockSelectionMode){
     toggleStockSelection(id);
   } else {
-    openAddModal(id);
+    startEditStock(id);
   }
 }
 
@@ -4657,6 +4682,22 @@ let keyboardOpen = false;
 let keyboardAdjustedFor = null; // tracks which focused element we've already nudged into view, so repeat viewport events (e.g. from scrolling) don't re-trigger it
 function handleKeyboardViewportChange(){
   if(!window.visualViewport) return;
+  // This whole "is the on-screen keyboard open" heuristic is meaningless on
+  // desktop — there's no virtual keyboard to cover content. Worse, the
+  // heightDiff check below can misfire there: a notification bar, DevTools,
+  // or other browser chrome can shift visualViewport vs innerHeight by more
+  // than the threshold, which was hiding nav.bottom-tabs via
+  // visibility:hidden — invisible, but still fully occupying its layout
+  // box, which is exactly why it measured correctly but never showed up.
+  if(window.matchMedia('(min-width: 768px)').matches){
+    // Defensive: if this ever got left hidden by a stale call from before
+    // a resize (e.g. narrow -> wide without a clean keyboard-close event),
+    // make sure desktop never keeps nav.bottom-tabs hidden.
+    const bottomTabs = document.querySelector('nav.bottom-tabs');
+    if(bottomTabs) bottomTabs.style.visibility = '';
+    keyboardOpen = false;
+    return;
+  }
   const heightDiff = window.innerHeight - window.visualViewport.height;
   const nowOpen = heightDiff > 120; // threshold to ignore address-bar show/hide, not just the keyboard
   const bottomTabs = document.querySelector('nav.bottom-tabs');
