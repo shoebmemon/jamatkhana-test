@@ -4227,7 +4227,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     animateCard();
   };
 
-  // --- Swipe to change months on the calendar ---
+  // --- Swipe to change floors ---
   var touchStartX = 0;
   var touchEndX = 0;
   var swipeCard = document.querySelector('.card');
@@ -4251,16 +4251,24 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     var diff = touchEndX - touchStartX;
     if(Math.abs(diff) < swipeThreshold) return;
 
+    var tabOrder = ['all', 'ground', 'first', 'second'];
+    var currentIndex = tabOrder.indexOf(state.currentFloor);
+    if(currentIndex === -1) currentIndex = 0;
+
     if(diff < 0){
-      // Swipe left -> next month
-      state.viewMonth++; if(state.viewMonth>11){ state.viewMonth=0; state.viewYear++; }
-      renderCalendar();
-      animateCard();
+      if(currentIndex < tabOrder.length - 1){
+        state.currentFloor = tabOrder[currentIndex + 1];
+        renderFloorTabs();
+        renderCalendar();
+        animateCard();
+      }
     } else {
-      // Swipe right -> previous month
-      state.viewMonth--; if(state.viewMonth<0){ state.viewMonth=11; state.viewYear--; }
-      renderCalendar();
-      animateCard();
+      if(currentIndex > 0){
+        state.currentFloor = tabOrder[currentIndex - 1];
+        renderFloorTabs();
+        renderCalendar();
+        animateCard();
+      }
     }
   }
 
