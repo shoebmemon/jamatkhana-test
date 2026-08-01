@@ -8,16 +8,24 @@ const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
-  './icons/icon-192.png',
-  './icons/icon-512.png',
-  './icons/icon-maskable-512.png'
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png'
 ];
 
 self.addEventListener('install', function (event) {
   self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then(function (cache) {
-      return cache.addAll(APP_SHELL);
+      // cache.add() per-file (not cache.addAll) so one missing/404 file
+      // doesn't cause the whole precache — and the service worker install — to fail.
+      return Promise.all(
+        APP_SHELL.map(function (url) {
+          return cache.add(url).catch(function (err) {
+            console.warn('Service worker: could not precache', url, err);
+          });
+        })
+      );
     })
   );
 });
