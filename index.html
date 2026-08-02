@@ -462,11 +462,12 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
 /* ---------- Accounts summary ---------- */
 .acct-hero{
   background:linear-gradient(160deg,var(--teal) 0%, var(--teal-dark) 100%);
-  color:#F7F3E8; border-radius:14px; padding:18px 20px; margin-top:4px;
+  color:#F7F3E8; border-radius:10px; padding:12px 16px; margin-top:14px;
+  display:grid; grid-template-columns:1fr auto; align-items:center; column-gap:12px;
 }
-.acct-hero .lbl{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.08em; text-transform:uppercase; color:var(--gold); opacity:0.9; }
-.acct-hero .num{ font-family:'Marcellus', serif; font-size:28px; margin:4px 0 0; }
-.acct-hero .sub{ font-size:12px; color:#D9E3DE; opacity:0.85; margin-top:6px; }
+.acct-hero p{ margin:0; }
+.acct-hero .lbl{ font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:0.03em; text-transform:uppercase; color:var(--gold); opacity:0.95; line-height:1.4; }
+.acct-hero .num{ font-family:'Marcellus', serif; font-size:20px; white-space:nowrap; text-align:right; line-height:1.2; }
 
 .acct-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px; }
 .acct-card{ background:var(--bg); border:1px solid var(--line); border-left:4px solid var(--line); border-radius:12px; padding:12px 14px; }
@@ -1131,7 +1132,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
         });
         state.data[f.id] = parsed;
       });
-      footer.textContent = 'Bookings are stored in the cloud and are private to your account.';
+      footer.textContent = '';
     }catch(e){
       console.error(e);
       footer.textContent = 'Could not load saved bookings. Check your internet connection and try refreshing.';
@@ -3126,11 +3127,16 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       var floors = item.floorIds;
       if(head==='floor'){
         if(floors.length > 1 && b.floorCharges){
-          floors.forEach(function(fid){
-            if(floorFilter!=='all' && fid!==floorFilter) return;
-            var amt = num(b.floorCharges[fid]);
-            if(amt>0) entries.push({ iso:item.iso, name:b.name, floorLabel:floorLabel(fid), amount:amt });
-          });
+          if(floorFilter==='all'){
+            var combinedAmt = floors.reduce(function(s,fid){ return s+num(b.floorCharges[fid]); }, 0);
+            if(combinedAmt>0) entries.push({ iso:item.iso, name:b.name, floorLabel:item.floorLabel, amount:combinedAmt });
+          } else {
+            floors.forEach(function(fid){
+              if(fid!==floorFilter) return;
+              var amt = num(b.floorCharges[fid]);
+              if(amt>0) entries.push({ iso:item.iso, name:b.name, floorLabel:floorLabel(fid), amount:amt });
+            });
+          }
         } else {
           if(floorFilter!=='all' && floors.indexOf(floorFilter)===-1) return;
           var amt = num(b.totalAmount);
@@ -3373,17 +3379,15 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     var el = document.getElementById('acctResults');
     el.innerHTML =
       '<div class="acct-hero">'+
-        '<p class="lbl" style="margin:0;">Total cash balance with you</p>'+
-        '<p class="num" style="margin:4px 0 0;">'+money(acc.cashBalance)+'</p>'+
-        '<p class="sub">Everything received so far — hall charges, deposits, and any billed extras — across '+acc.count+' booking'+(acc.count===1?'':'s')+'</p>'+
+        '<p class="lbl">Total cash balance with you</p>'+
+        '<p class="num">'+money(acc.cashBalance)+'</p>'+
       '</div>'+
       '<div class="acct-grid">'+
         acctCard('received','Total received (all payments)', money(acc.totalReceived), 'cashbook')+
         acctCard('sd-collected','Security deposit collected', money(acc.sdCollected), 'deposit')+
         acctCard('sd-released','Security deposit settled (billed)', money(acc.sdReleased), 'deposit')+
         acctCard('balance-due','Still due from customers', money(acc.balanceDue), 'balance-due')+
-      '</div>'+
-      '<p class="hint">"Total cash balance" is simply every payment recorded (amount paid already includes any deposit collected up front). "Security deposit collected/settled" is a breakdown of how much of that cash is deposit money — collected but not yet added again, so it won\u2019t inflate the total above. "Still due from customers" is money owed to you, separate from cash already in hand. A booking that covers more than one floor is counted once in the total above. Tap any card above to open its account, or switch "View" above to see individual ledgers for each charge head.</p>';
+      '</div>';
 
     el.querySelectorAll('.acct-card.clickable').forEach(function(card){
       card.onclick = function(){ goToLedgerView(card.getAttribute('data-target')); };
@@ -3428,9 +3432,8 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
 
       el.innerHTML =
         '<div class="acct-hero">'+
-          '<p class="lbl" style="margin:0;">'+headInfo.label+' — '+meta.balanceLabel+'</p>'+
-          '<p class="num" style="margin:4px 0 0;">'+money(ledger.balance)+'</p>'+
-          '<p class="sub">'+meta.typeLabel+'</p>'+
+          '<p class="lbl">'+headInfo.label+' — '+meta.balanceLabel+'</p>'+
+          '<p class="num">'+money(ledger.balance)+'</p>'+
         '</div>'+
         (ledger.hasOpening
           ? '<div class="booking-card" style="margin-top:14px; display:flex; justify-content:space-between; align-items:center;">'+
@@ -3449,8 +3452,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
             '<p class="hint" style="margin:0 0 8px;">Total: <strong>'+money(ledger.creditTotal)+'</strong></p>'+
             creditHtml+
           '</div>'+
-        '</div>'+
-        '<p class="hint">Formal double-entry ledger for '+headInfo.label.toLowerCase()+' — Debit and Credit sides with a running balance, on the same basis as the accounts summary.</p>';
+        '</div>';
       return;
     }
 
@@ -3485,15 +3487,13 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       '<div class="acct-hero">'+
         '<p class="lbl">'+headInfo.label+' — '+totalWord+' this period</p>'+
         '<p class="num">'+money(ledger.total)+'</p>'+
-        '<p class="sub">'+ledger.entries.length+' entr'+(ledger.entries.length===1?'y':'ies')+' in the selected filters</p>'+
       '</div>'+
       openingHtml+
       '<div class="booking-card" style="margin-top:14px;">'+
         '<p class="bc-name" style="margin:0 0 8px;">'+headInfo.label+' — by booking</p>'+
         rowsHtml+
       '</div>'+
-      closingHtml+
-      '<p class="hint">This is the '+headInfo.label.toLowerCase()+' '+byWord+' against each booking (same basis as the summary\u2019s figures) — not a proration of partial payments across heads.'+(ledger.hasOpening?' Opening balance is everything recorded before the selected period; closing balance carries that forward through this period.':'')+'</p>';
+      closingHtml;
   }
 
   function cashRow(e, side){
@@ -3551,7 +3551,6 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       '<div class="acct-hero">'+
         '<p class="lbl">Cash in hand</p>'+
         '<p class="num">'+money(cash.closingBalance)+'</p>'+
-        '<p class="sub">Opening balance + receipts − payments'+(cash.hasOpening?'':' (all time)')+'</p>'+
       '</div>'+
       (cash.hasOpening
         ? '<div class="booking-card" style="margin-top:14px; display:flex; justify-content:space-between; align-items:center;">'+
@@ -3571,8 +3570,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
           paymentsHtml+
           addPaymentHtml+
         '</div>'+
-      '</div>'+
-      '<p class="hint">Receipts are booking payments and final-billing top-ups, dated as they were collected. Payments are refunds paid to customers plus any manual cash payments you\u2019ve logged (money handed to management, expenses, or anything else paid out in cash). Opening balance carries forward everything before the selected period, so Cash in hand is a true running balance, not just this period\u2019s activity.</p>';
+      '</div>';
 
     if(floorFilter==='all'){
       document.getElementById('cbAddPaymentBtn').onclick = function(){
