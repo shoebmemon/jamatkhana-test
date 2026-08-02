@@ -49,7 +49,7 @@ body{
 /* ---------- Header ---------- */
 .header{
   position:relative;
-  background:linear-gradient(160deg,var(--teal) 0%, var(--teal-dark) 100%);
+  background:linear-gradient(180deg,var(--teal) 0%, var(--teal-dark) 100%);
   border-radius:18px;
   padding:clamp(16px,4vw,32px) clamp(16px,5vw,36px);
   color:#F7F3E8; overflow:hidden; box-shadow:var(--shadow);
@@ -807,15 +807,14 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     data: { ground:{}, first:{}, second:{} },
     settings: {
       slotsEnabled:false,
-      ground:{fullDay:'',halfDay:'',cleaning:'',deposit:''}, first:{fullDay:'',halfDay:'',cleaning:'',deposit:''}, second:{fullDay:'',halfDay:'',cleaning:'',deposit:''},
+      ground:{fullDay:'3500',halfDay:'',cleaning:'200',deposit:'3000'}, first:{fullDay:'2200',halfDay:'',cleaning:'200',deposit:'3000'}, second:{fullDay:'4000',halfDay:'',cleaning:'500',deposit:'3000'},
       packageTwoFloorsDeposit: '5000',
       packageThreeFloorsDeposit: '5000',
-      elecRate: '',
+      elecRate: '10',
       inventoryItems: [
         { name:'Chair', rate:'5' },
-        { name:'Table', rate:'20' },
-        { name:'Blanket', rate:'30' },
-        { name:'Gadda', rate:'50' }
+        { name:'Table', rate:'25' },
+        { name:'Gadda Set', rate:'30' }
       ],
       fixedCharges: [
         { name:'Generator Charges', rate:'1500' }
@@ -1157,18 +1156,19 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       slotsEnabled:false,
       packageTwoFloorsDeposit: '5000',
       packageThreeFloorsDeposit: '5000',
-      elecRate: '',
+      elecRate: '10',
       inventoryItems: [
         { name:'Chair', rate:'5' },
-        { name:'Table', rate:'20' },
-        { name:'Blanket', rate:'30' },
-        { name:'Gadda', rate:'50' }
+        { name:'Table', rate:'25' },
+        { name:'Gadda Set', rate:'30' }
       ],
       fixedCharges: [
         { name:'Generator Charges', rate:'1500' }
       ]
     };
-    FLOORS.forEach(function(f){ s[f.id] = {fullDay:'',halfDay:'',cleaning:'',deposit:''}; });
+    s.ground = { fullDay:'3500', halfDay:'', cleaning:'200', deposit:'3000' };
+    s.first  = { fullDay:'2200', halfDay:'', cleaning:'200', deposit:'3000' };
+    s.second = { fullDay:'4000', halfDay:'', cleaning:'500', deposit:'3000' };
     return s;
   }
 
