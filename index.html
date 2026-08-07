@@ -800,7 +800,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     {id:'evening', label:'Evening'},
     {id:'full', label:'Full Day'}
   ];
-  var EVENT_TYPES = ['Nikah / Wedding','Majlis','Meeting','Birthday / Anniversary','Gyarahvi Sharif','Chaliswa','Other'];
+  var EVENT_TYPES = ['Gyarahvi Sharif','Nikah / Wedding','Meeting','Birthday / Anniversary','Chaliswa','Other'];
   var WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
@@ -2098,12 +2098,9 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
         '<button class="close-btn" id="mClose">&times;</button>'+
       '</div>'+
       '<div class="booking-card" style="margin-top:0;">'+
-        '<p class="bc-name" style="margin:0 0 8px;">Electricity meter reading</p>'+
+        '<p class="bc-name" style="margin:0 0 8px;">Electricity</p>'+
         '<p class="hint" style="margin:0 0 8px;">Rate configured: '+money((state.settings && state.settings.elecRate) || 0)+' per unit</p>'+
-        '<div class="row2">'+
-          '<div class="field" style="margin-top:0;"><label>Opening reading</label><input type="number" id="fElecOpen" value="'+attr(b.elecOpen)+'" placeholder="0"></div>'+
-          '<div class="field" style="margin-top:0;"><label>Closing reading</label><input type="number" id="fElecClose" value="'+attr(b.elecClose)+'" placeholder="0"></div>'+
-        '</div>'+
+        '<div class="field" style="margin-top:0;"><label>Units consumed</label><input type="number" id="fElecUnits" value="'+attr(b.elecClose)+'" placeholder="e.g. 20" min="0"></div>'+
       '</div>'+
       '<div class="booking-card" style="margin-top:10px;">'+
         '<p class="bc-name" style="margin:0 0 8px;">Items on rent used</p>'+
@@ -2145,8 +2142,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     var finalReceiptBtn = document.getElementById('mFinalReceipt');
     if(finalReceiptBtn) finalReceiptBtn.onclick = function(){ renderReceiptView(iso, floorId, b, false, 'final'); };
 
-    var elecOpenEl = document.getElementById('fElecOpen');
-    var elecCloseEl = document.getElementById('fElecClose');
+    var elecUnitsEl = document.getElementById('fElecUnits');
     var invInputs = document.querySelectorAll('.fInvQty');
     var fixedInputs = document.querySelectorAll('.fFixedChk');
     var penaltyEl = document.getElementById('fPenalty');
@@ -2154,9 +2150,8 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
     // netBalance > 0: customer still owes money. netBalance < 0: customer is owed a
     // refund (net of anything already refunded). netBalance === 0: fully settled.
     function recalc(){
-      var op = num(elecOpenEl.value), cl = num(elecCloseEl.value);
+      var units = num(elecUnitsEl.value);
       var rate = num((state.settings && state.settings.elecRate) || 0);
-      var units = (cl > op) ? (cl - op) : 0;
       var elecCharge = units * rate;
       document.getElementById('elecLineWrap').innerHTML = elecCharge>0 ? bcRow('Electricity ('+units+' units × ₹'+rate+')', money(elecCharge), true) : '';
 
@@ -2219,17 +2214,16 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
         });
       }
     }
-    elecOpenEl.addEventListener('input', recalc);
-    elecCloseEl.addEventListener('input', recalc);
+    elecUnitsEl.addEventListener('input', recalc);
     invInputs.forEach(function(inp){ inp.addEventListener('input', recalc); });
     fixedInputs.forEach(function(chk){ chk.addEventListener('change', recalc); });
     if(penaltyEl) penaltyEl.addEventListener('input', recalc);
     recalc();
 
     document.getElementById('mConfirmRelease').onclick = async function(){
-      var op = num(elecOpenEl.value), cl = num(elecCloseEl.value);
+      var elecUnits = num(elecUnitsEl.value);
       var rate = num((state.settings && state.settings.elecRate) || 0);
-      var elecCharge = (cl > op) ? (cl - op) * rate : 0;
+      var elecCharge = elecUnits * rate;
 
       var invTotal = 0;
       var invQuantities = {};
@@ -2274,8 +2268,8 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       b.sdReleased = true;
       b.sdReleaseDate = document.getElementById('fReleaseDate').value || today;
       b.sdReleaseNotes = document.getElementById('fReleaseNotes').value.trim();
-      b.elecOpen = op;
-      b.elecClose = cl;
+      b.elecOpen = 0;
+      b.elecClose = elecUnits;
       b.elecCharges = elecCharge;
       b.inventoryCharges = invTotal;
       b.inventoryQuantities = invQuantities;
@@ -3406,9 +3400,14 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
   }
 
   function ledgerRow(e){
-    return '<div class="bc-row cb-row">'+
-      '<span class="k">'+fmtDateLabel(e.iso).split(',').slice(0,2).join(',')+' · '+escapeHtml(e.name)+' ('+e.floorLabel+')'+(e.note?' — '+escapeHtml(e.note):'')+'</span>'+
-      '<span class="v mono">'+money(e.amount)+'</span>'+
+    var fullDate = fmtDateLabel(e.iso);
+    var commaIdx = fullDate.indexOf(',');
+    var weekday = commaIdx>-1 ? fullDate.slice(0,commaIdx) : '';
+    var dateOnly = commaIdx>-1 ? fullDate.slice(commaIdx+1).trim() : fullDate;
+    return '<div class="ledger-row">'+
+      '<div class="lr-col lr-date"><span class="lr-main">'+dateOnly+'</span><span class="lr-sub">'+weekday+'</span></div>'+
+      '<div class="lr-col lr-name"><span class="lr-main">'+escapeHtml(e.name)+'</span>'+(e.note?'<span class="lr-type">'+escapeHtml(e.note)+'</span>':'')+'<span class="lr-sub">('+e.floorLabel+')</span></div>'+
+      '<div class="lr-col lr-amt">'+money(e.amount)+'</div>'+
     '</div>';
   }
 
@@ -4174,7 +4173,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
   function downloadCsv(){
     var rows = [[
       'Floor','Date','Slot','Event','Name','Mobile','Address','Floor Charges','Floor Charges Breakdown','Cleaning Charge','Security Deposit',
-      'Items Used','Items Total','Fixed Charges','Fixed Charges Total','Electricity Opening','Electricity Closing','Electricity Charge','Penalty','Penalty Reason',
+      'Items Used','Items Total','Fixed Charges','Fixed Charges Total','Electricity Units','Electricity Charge','Penalty','Penalty Reason',
       'Total Configuration','Amount Paid At Booking','Extra Collected (Final Billing)','Total Amount Paid','Balance Due','Refund Due To Customer','Refund Paid To Customer','Payment Details',
       'Billing Complete','Billing Processed On','Billing Notes'
     ]];
@@ -4191,7 +4190,7 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
       rows.push([
         item.floorLabel, item.iso, slotLabelOf(b)||'', eventLabel, b.name, b.mobile, b.address||'',
         num(b.totalAmount), floorBreakdownDesc, num(b.cleaningCharge), deposit,
-        itemsDesc, num(b.inventoryCharges), fixedDesc, num(b.fixedChargesTotal), num(b.elecOpen), num(b.elecClose), num(b.elecCharges), num(b.penalty), b.penaltyReason||'',
+        itemsDesc, num(b.inventoryCharges), fixedDesc, num(b.fixedChargesTotal), num(b.elecClose), num(b.elecCharges), num(b.penalty), b.penaltyReason||'',
         total, num(b.amountPaid), num(b.extraCollected||0), totalPaidOf(b), balance, refundDue, num(b.refundsPaid||0), b.paymentDetails||'',
         b.sdReleased?'Yes':'No', b.sdReleaseDate||'', b.sdReleaseNotes||''
       ]);
