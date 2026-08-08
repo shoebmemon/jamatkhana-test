@@ -1443,10 +1443,6 @@ h1{ font-family:'Marcellus', serif; font-size:clamp(20px,4vw,30px); margin:0; fo
         var secondBooked = dayBookings('second', iso).length>0;
         var anyBooked = groundBooked || firstBooked || secondBooked;
 
-        if(anyBooked){
-          cell.className += (iso < todayStr) ? ' past-highlight' : ' is-booked';
-        }
-
         var html = '<span class="num">'+dayNum+'</span>';
         if(iso >= todayStr && anyBooked){
           var gBooked = dayBookings('ground', iso).length>0;
