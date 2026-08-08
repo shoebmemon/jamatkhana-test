@@ -1,6 +1,6 @@
 {
   "name": "Jamat Khana Booking",
-  "short_name": "JK Booking",
+  "short_name": "Jamatkhana Booking",
   "description": "Manage the Jamat Khana booking register — calendar, floors, billing, and cash tracking.",
   "start_url": "./index.html",
   "scope": "./",
